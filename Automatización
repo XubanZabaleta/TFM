@@ -1,0 +1,183 @@
+1. Inteligencia: Programa del core
+
+###############################
+#########Functions##############
+###############################
+from multiprocessing import Process
+import time
+
+def read (file_name):               #read logs file
+ with open(file_name) as f:
+    lines=f.readlines()
+    return lines
+
+def api_launch():
+    from flask import Flask, jsonify, request
+    app = Flask(__name__)
+    @app.route('/', methods=['GET'])
+    def api():
+        if request.method == 'GET':
+            return jsonify('Launch')
+     if __name__ == "__main__":
+        app.run(host='0.0.0.0')
+
+def launch_gNB_2(lines,integer,string):  #detection of the necessity of launching second base station
+    cont=integer
+    check=''
+    for i in lines[cont:len(lines)]:
+        cont+=1
+        for j in i:      #travels character by character the file and save the number of the line in which we are
+            if len(check)<len(string):   #check if the length of the string is smaller than the one we are finding
+                check+=j
+            else:
+                check=check[1:len(check)]+j   #if the length is correct remove the first character and add one                  
+                if check==string:  #check if it is the wanted string
+                    print('You need new gNB')
+                    server=Process(target=api_launch)
+                    server.start()
+                    time.sleep(1)
+                    server.terminate() # to terminate the server
+                    return 'launched',cont
+    return 'turned off',cont
+
+def api_turn_off():
+    from flask import Flask, jsonify, request
+    app = Flask(__name__)
+    @app.route('/', methods=['GET'])
+    def api():
+        if request.method == 'GET':
+            return jsonify('Turn off')
+    if __name__ == "__main__":
+        app.run(host='0.0.0.0')
+
+def turn_off_gNB_2 (lines,integer,string): #detection of the necessity of shouting down the second base station
+cont=integer
+    check=''
+    for i in lines[cont:len(lines)]:
+        cont+=1
+        for j in i:     #travels character by character the file and save the number of the line in which we are
+            if len(check)<len(string):
+                check+=j
+            else:
+                check=check[1:len(check)]+j  #if the length is correct remove the first character and add one 
+                if check==string: #check if it is the wanted string                  
+                    print('Second gNB is no needed any more')
+                    server=Process(target=api_turn_off)
+                    server.start()
+                    time.sleep(1)
+                    server.terminate() # to terminate the server
+                    return 'turned off',cont
+    return 'launched',cont
+
+###############################
+##########Program##############
+###############################
+string_launch='Number of gNB-UEs is now 2'
+string_turn_off='Number of gNB-UEs is now 1'
+lines=read('logs.txt')
+state='apagado'
+cont=0
+state,cont=launch_gNB_2(lines,cont,string_launch)
+while True:
+      a=read('logs.txt')
+      cont2=0
+      for x in a:  #if the log file is bigger do everything again starting on the last line we where
+          cont2+=1
+          if cont2>cont:
+              if state=='launched':
+                  state,cont=turn_off_gNB_2(a,cont-1,string_turn_off)
+              else:
+                  state,cont=launch_gNB_2(a,cont-1,string_launch)
+
+2. Lanzar: Programada en el gNB
+
+###############################
+#########Functions##############
+###############################
+
+import requests
+import re
+import subprocess
+import time
+import logging
+import argparse
+import sys
+
+logging.basicConfig(
+    level=logging.DEBUG,
+    stream=sys.stdout,
+    format="[%(asctime)s] %(name)s:%(levelname)s: %(message)s"
+)
+
+def run_cmd(cmd, silent=True):
+    if not silent:
+        logging.debug(cmd)
+    result = None
+    try:
+        res = subprocess.run(cmd,
+                        shell=True, check=True,
+                        stdout=subprocess.PIPE,
+                        universal_newlines=True)
+        result = res.stdout.strip()
+    except:
+        pass
+    return result
+
+###############################
+##########Program##############
+###############################
+while True:
+    try:
+        response = requests.get("http://192.168.15.128:5000/")
+        comando= response.text[1:len(response.text)-2]
+        if comando=='Launch':
+	cmd = f'sshpass -p ********** sudo ./nr-softmodem -O ../../../targets/PROJECTS/GENERIC-NR-5GC/CONF/gnb.sa.band41.fr1.106PRB.usrpb210.conf --sa -E'
+            res = run_cmd(cmd, False)
+    except:
+        continue
+
+3. Apagar: Programada en el gNB
+
+###############################
+#########Functions##############
+###############################
+import requests
+import re
+import subprocess
+import time
+import logging
+import argparse
+import sys
+
+logging.basicConfig(
+    level=logging.DEBUG,
+    stream=sys.stdout,
+    format="[%(asctime)s] %(name)s:%(levelname)s: %(message)s"
+)
+
+def run_cmd(cmd, silent=True):
+    if not silent:
+        logging.debug(cmd)
+    result = None
+    try:
+        res = subprocess.run(cmd,
+                        shell=True, check=True,
+                        stdout=subprocess.PIPE,
+                        universal_newlines=True)
+        result = res.stdout.strip()
+    except:
+        pass
+    return result
+
+###############################
+##########Program##############
+###############################
+while True:
+    try:
+        response = requests.get("http://192.168.15.128:5000/")
+        comando= response.text[1:len(response.text)-2]
+        if comando=='Turn off':
+	cmd = f'sshpass -p ********** sudo .pkill -f “nr-softmodem”'
+            res = run_cmd(cmd, False)
+    except:
+        continue
